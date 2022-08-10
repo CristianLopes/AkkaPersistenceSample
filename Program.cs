@@ -7,13 +7,11 @@ namespace AkkaPersistenceSample
     {
         private static ActorSystem _actorSystem { get; set; }
         private static IActorRef _strategyManager { get; set; }
-        private static IActorRef _strategyActor{ get; set; }
 
         static void Main(string[] args)
         {
             _actorSystem = ActorSystem.Create("strategy-system");
             _strategyManager = _actorSystem.ActorOf<StrategyManagerActor>("StrategyManager");
-            _strategyActor = _actorSystem.ActorOf<StrategyActor>("Strategy");
 
             Console.ForegroundColor = ConsoleColor.White;
 
@@ -23,7 +21,7 @@ namespace AkkaPersistenceSample
             {
                 Thread.Sleep(2000); // ensure console color set back to white
                 Console.ForegroundColor = ConsoleColor.White;
-
+                
                 var action = Console.ReadLine()!;
                 if (action.Contains("create"))
                 {
@@ -37,11 +35,49 @@ namespace AkkaPersistenceSample
                 {
                     ExecuteAmmountReceived(action);
                 }
+                else if (action.Contains("display-all"))
+                {
+                    DisplayAll(action);
+                }
+                else if (action.Contains("display"))
+                {
+                    Display(action);
+                }
                 else
                 {
                     Console.WriteLine("Unknown command");
                 }
             }
+        }
+
+        private static void Display(string action)
+        {
+            var splitData = action.Split(' ')[2];
+            var splitStrategyData = splitData.Split(',');
+            
+            //expected command
+            //"strategy display {strategyId}
+            var displayStrategyCommand = new ActorModel.Commands.DisplayStrategy()
+            {
+                StrategyId = Guid.Parse(splitStrategyData[0]),
+            };
+
+            _actorSystem
+                .ActorSelection($"/user/StrategyManager/{displayStrategyCommand.StrategyId}")
+                .Tell(displayStrategyCommand);
+        }
+
+
+
+        private static void DisplayAll(string action)
+        {
+            //expected command
+            //"strategy display-all 
+            var displayAllCommand = new ActorModel.Commands.DisplayAll();
+
+            _actorSystem
+                .ActorSelection($"/user/StrategyManager/*")
+                .Tell(displayAllCommand);
         }
 
         private static void CreateStrategy(string action)
@@ -67,8 +103,10 @@ namespace AkkaPersistenceSample
 
         private static void ExecuteAmmountReceived(string action)
         {
+            
             var splitData = action.Split(' ')[2];
             var splitStrategyData = splitData.Split(',');
+
             //expected command
             //"strategy execute-ammount {strategyId},{ammount}
             var changePriceCommand = new ActorModel.Commands.ChangeExecutedAmmount()
@@ -76,6 +114,7 @@ namespace AkkaPersistenceSample
                 StrategyId = Guid.Parse(splitStrategyData[0]),
                 ExecutedAmmount = double.Parse(splitStrategyData[1]),
             };
+
 
             _actorSystem
                 .ActorSelection($"/user/StrategyManager/*")
@@ -86,6 +125,7 @@ namespace AkkaPersistenceSample
         {
             var splitData = action.Split(' ')[2];
             var splitStrategyData = splitData.Split(',');
+
             //expected command
             //"strategy change-price {cryptoCurrency},{currentPrice}
             var changePriceCommand = new ActorModel.Commands.ChangePrice()
@@ -99,17 +139,19 @@ namespace AkkaPersistenceSample
                 .Tell(changePriceCommand);
         }
 
-
-
         private static void DisplayInstructions()
         {
             Thread.Sleep(2000); // ensure console color set back to white
+
             Console.ForegroundColor = ConsoleColor.White;
 
+            Console.WriteLine();
             Console.WriteLine("Available commands:");
-            Console.WriteLine("strategy create {cyptoCurrency},{Side(buy or sell)},{EntryPrice},{GainPrice},{StopPrice},{Ammount}");
+            Console.WriteLine("strategy create {userCode},{cyptoCurrency},{Side(buy or sell)},{EntryPrice},{GainPrice},{StopPrice},{Ammount}");
             Console.WriteLine("strategy change-price {cryptoCurrency},{currentPrice}");
             Console.WriteLine("strategy execute-ammount {strategyId},{ammount}");
+            Console.WriteLine("strategy display {strategyId}");
+            Console.WriteLine("strategy display-all");
         }
     }
 }

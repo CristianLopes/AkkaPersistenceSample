@@ -1,6 +1,7 @@
 ﻿using Akka.Persistence;
 using AkkaPersistenceSample.ActorModel.Commands;
 using AkkaPersistenceSample.ActorModel.Events;
+using System.Text.Json;
 
 namespace AkkaPersistenceSample.ActorModel.Actors
 {
@@ -16,7 +17,7 @@ namespace AkkaPersistenceSample.ActorModel.Actors
         public double Ammount { get; set; }
         public double ExecutedAmmount { get; set; }
         public double PercentageExecuted { get; set; }
-
+        public bool IsFinished { get; set; }
         public int EventCount { get; set; }
     }
 
@@ -25,11 +26,7 @@ namespace AkkaPersistenceSample.ActorModel.Actors
         public override string PersistenceId => $"strategy-{_state.StrategyId}";
         private StrategyState _state;
 
-        public StrategyActor()
-        {
-            _state = new StrategyState();
-        }
-        public StrategyActor(string userCode, Guid strategyId, string cryptoCurrency, Side side, double entryPrice, double gainPrice, double stopPrice, double ammount )
+        public StrategyActor(string userCode, Guid strategyId, string cryptoCurrency, Side side, double entryPrice, double gainPrice, double stopPrice, double ammount)
         {
             _state = new StrategyState
             {
@@ -44,39 +41,51 @@ namespace AkkaPersistenceSample.ActorModel.Actors
                 ExecutedAmmount = 0
             };
 
-            Command(
-                command => IsSameCryptoCurrency(command),
-                (Action<ChangePrice>)(command => ReceivedChangePrice(command))
+            Command<DisplayStrategy>(command =>
+            {
+                DisplayHelper.WriteLine($"DisplayStrategy command received {command.StrategyId}", ConsoleColor.Blue);
+                DisplayHelper.WriteLine(JsonSerializer.Serialize(_state), ConsoleColor.Blue);
+            });
+
+            Command<DisplayAll>(command =>
+            {
+                DisplayHelper.WriteLine("DisplayAll command received", ConsoleColor.Blue);
+                DisplayHelper.WriteLine(JsonSerializer.Serialize(_state), ConsoleColor.Blue);
+            });
+
+
+            Command<ChangePrice>(
+                command => !StrategyIsFinished() && IsSameCryptoCurrency(command),
+                (command => ReceivedChangePrice(command))
                 );
 
-            Command(
-                command => IsSameStrategyId(command),
-                (Action<ChangeExecutedAmmount>)(command => ReceivedExecuteAmmount(command)));
 
+
+            Command<ChangeExecutedAmmount>(
+                command => IsSameStrategyId(command),
+                (command => ReceivedExecuteAmmount(command)));
 
             Recover<ChangedExecutedAmmount>(changedExecutedAmmountEvent =>
             {
                 DisplayHelper.WriteLine($"{_state.StrategyId} replaying ChangedExecutedAmmount event from journal");
+                
                 _state.ExecutedAmmount += changedExecutedAmmountEvent.ExecutedAmmount;
                 _state.EventCount++;
             });
 
             Recover<SnapshotOffer>(offer =>
             {
+
                 DisplayHelper.WriteLine($"{_state.StrategyId} received SnapshotOffer from snapshot offer");
                 _state = (StrategyState)offer.Snapshot;
             });
         }
 
-        private bool IsSameCryptoCurrency(ChangePrice command)
-        {
-            return command.CryptoCurrency == _state.CryptoCurrency;
-        }
+        private bool StrategyIsFinished() => _state.IsFinished;
 
-        private bool IsSameStrategyId(ChangeExecutedAmmount command)
-        {
-            return command.StrategyId == _state.StrategyId;
-        }
+        private bool IsSameCryptoCurrency(ChangePrice command) => command.CryptoCurrency == _state.CryptoCurrency;
+
+        private bool IsSameStrategyId(ChangeExecutedAmmount command) => command.StrategyId == _state.StrategyId;
 
         private void ReceivedExecuteAmmount(ChangeExecutedAmmount command)
         {
@@ -90,7 +99,8 @@ namespace AkkaPersistenceSample.ActorModel.Actors
             Persist(@event, changedExecutedAmmount =>
             {
                 _state.ExecutedAmmount += changedExecutedAmmount.ExecutedAmmount;
-                _state.PercentageExecuted = 100 * _state.ExecutedAmmount  / _state.Ammount;
+                _state.PercentageExecuted = 100 * _state.ExecutedAmmount / _state.Ammount;
+                _state.IsFinished = _state.ExecutedAmmount == _state.Ammount;
 
                 DisplayHelper.WriteLine($"Strategy ExecutedAmmount event for {changedExecutedAmmount.StrategyId} " +
                     $"New State {System.Text.Json.JsonSerializer.Serialize(_state)}");
@@ -120,7 +130,7 @@ namespace AkkaPersistenceSample.ActorModel.Actors
 
             if (_state.Side == Side.Buy)
             {
-                if (command.CurrentPrice >= _state.GainPrice )
+                if (command.CurrentPrice >= _state.GainPrice)
                 {
                     FinishStrategyWithGain(_state);
                 }
@@ -141,23 +151,39 @@ namespace AkkaPersistenceSample.ActorModel.Actors
                 }
             }
         }
-
         private void FinishStrategyWithGain(StrategyState state)
         {
             var @event = new StrategyFinishedWithGain(state.StrategyId);
             Persist(@event, strategyFinishedWithGain =>
             {
                 DisplayHelper.WriteLine($"Strategy finished with gain {strategyFinishedWithGain.StrategyId}");
+
+                var changeExecutedAmmount = new ChangeExecutedAmmount()
+                {
+                    StrategyId = _state.StrategyId,
+                    ExecutedAmmount = _state.Ammount - _state.ExecutedAmmount,
+                };
+
+                Self.Tell(changeExecutedAmmount, Self);
                 Self.Tell(new FinishStrategyWithGain(strategyFinishedWithGain.StrategyId), Self);
             });
         }
 
         private void FinishStrategyWithLoss(StrategyState state)
         {
+            
             var @event = new StrategyFinishedWithLoss(state.StrategyId);
             Persist(@event, strategyFinishedWithLoss =>
             {
                 DisplayHelper.WriteLine($"Strategy finished with loss {strategyFinishedWithLoss.StrategyId}");
+                
+                var changeExecutedAmmount = new ChangeExecutedAmmount()
+                {
+                    StrategyId = _state.StrategyId,
+                    ExecutedAmmount = _state.Ammount - _state.ExecutedAmmount,
+                };
+
+                Self.Tell(changeExecutedAmmount, Self);
                 Self.Tell(new StrategyFinishedWithLoss(strategyFinishedWithLoss.StrategyId), Self);
             });
         }
