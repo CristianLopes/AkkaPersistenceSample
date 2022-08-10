@@ -2,14 +2,11 @@
 {
     static class DisplayHelper
     {
-        public static void WriteLine(string message)
+        public static void WriteLine(string message, ConsoleColor consoleColor = ConsoleColor.Green)
         {
             var originalColor = Console.ForegroundColor;
-
-            Console.ForegroundColor = ConsoleColor.Green;
-
+            Console.ForegroundColor = consoleColor;
             Console.WriteLine(message);
-
             Console.ForegroundColor = originalColor;
         }
     }
