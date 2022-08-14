@@ -1,28 +1,14 @@
-﻿using Akka.Persistence;
+﻿using Akka.Event;
+using Akka.Persistence;
 using AkkaPersistenceSample.ActorModel.Commands;
 using AkkaPersistenceSample.ActorModel.Events;
 using System.Text.Json;
 
 namespace AkkaPersistenceSample.ActorModel.Actors
 {
-    public class StrategyState
-    {
-        public string? UserCode { get; set; }
-        public Guid StrategyId { get; set; }
-        public string? CryptoCurrency { get; set; }
-        public Side Side { get; set; }
-        public double EntryPrice { get; set; }
-        public double GainPrice { get; set; }
-        public double StopPrice { get; set; }
-        public double Ammount { get; set; }
-        public double ExecutedAmmount { get; set; }
-        public double PercentageExecuted { get; set; }
-        public bool IsFinished { get; set; }
-        public int EventCount { get; set; }
-    }
-
     public class StrategyActor : ReceivePersistentActor
     {
+        private readonly ILoggingAdapter _loggingAdapter = Context.GetLogger();
         public override string PersistenceId => $"strategy-{_state.StrategyId}";
         private StrategyState _state;
 
@@ -43,23 +29,20 @@ namespace AkkaPersistenceSample.ActorModel.Actors
 
             Command<DisplayStrategy>(command =>
             {
-                DisplayHelper.WriteLine($"DisplayStrategy command received {command.StrategyId}", ConsoleColor.Blue);
-                DisplayHelper.WriteLine(JsonSerializer.Serialize(_state), ConsoleColor.Blue);
+                DisplayHelper.WriteLine($"DisplayStrategy command received {command.StrategyId}", loggingAdapter: _loggingAdapter);
+                DisplayHelper.PrintState(_state);
             });
 
             Command<DisplayAll>(command =>
             {
-                DisplayHelper.WriteLine("DisplayAll command received", ConsoleColor.Blue);
-                DisplayHelper.WriteLine(JsonSerializer.Serialize(_state), ConsoleColor.Blue);
+                DisplayHelper.WriteLine("DisplayAll command received",_loggingAdapter);
+                DisplayHelper.PrintState(_state);
             });
-
 
             Command<ChangePrice>(
                 command => !StrategyIsFinished() && IsSameCryptoCurrency(command),
                 (command => ReceivedChangePrice(command))
                 );
-
-
 
             Command<ChangeExecutedAmmount>(
                 command => IsSameStrategyId(command),
@@ -67,7 +50,7 @@ namespace AkkaPersistenceSample.ActorModel.Actors
 
             Recover<ChangedExecutedAmmount>(changedExecutedAmmountEvent =>
             {
-                DisplayHelper.WriteLine($"{_state.StrategyId} replaying ChangedExecutedAmmount event from journal");
+                DisplayHelper.WriteLine($"{_state.StrategyId} replaying ChangedExecutedAmmount event from journal", _loggingAdapter);
                 
                 _state.ExecutedAmmount += changedExecutedAmmountEvent.ExecutedAmmount;
                 _state.EventCount++;
@@ -75,8 +58,7 @@ namespace AkkaPersistenceSample.ActorModel.Actors
 
             Recover<SnapshotOffer>(offer =>
             {
-
-                DisplayHelper.WriteLine($"{_state.StrategyId} received SnapshotOffer from snapshot offer");
+                DisplayHelper.WriteLine($"{_state.StrategyId} received SnapshotOffer from snapshot offer", _loggingAdapter);
                 _state = (StrategyState)offer.Snapshot;
             });
         }
@@ -102,20 +84,17 @@ namespace AkkaPersistenceSample.ActorModel.Actors
                 _state.PercentageExecuted = 100 * _state.ExecutedAmmount / _state.Ammount;
                 _state.IsFinished = _state.ExecutedAmmount == _state.Ammount;
 
-                DisplayHelper.WriteLine($"Strategy ExecutedAmmount event for {changedExecutedAmmount.StrategyId} " +
-                    $"New State {System.Text.Json.JsonSerializer.Serialize(_state)}");
+                DisplayHelper.WriteLine($"Strategy ExecutedAmmount event for {changedExecutedAmmount.StrategyId}", _loggingAdapter);
 
                 _state.EventCount++;
 
                 if (_state.EventCount == 5)
                 {
-                    DisplayHelper.WriteLine($"{_state.StrategyId} saving snapshot");
-
                     _state.EventCount = 0;
 
                     SaveSnapshot(_state);
 
-                    DisplayHelper.WriteLine($"{_state.StrategyId} resetting event count to 0");
+                    DisplayHelper.WriteLine($"{_state.StrategyId} snapshot saved", _loggingAdapter);
                 }
             });
         }
@@ -126,7 +105,7 @@ namespace AkkaPersistenceSample.ActorModel.Actors
                 $"Received PriceUpdate " +
                 $"State CryptoCurrency: {_state.CryptoCurrency}" +
                 $"Command CryptoCurrency: {command.CryptoCurrency}, " +
-                $"Command CryptoCurrency: {command.CurrentPrice}");
+                $"Command CryptoCurrency: {command.CurrentPrice}", _loggingAdapter);
 
             if (_state.Side == Side.Buy)
             {
@@ -156,7 +135,7 @@ namespace AkkaPersistenceSample.ActorModel.Actors
             var @event = new StrategyFinishedWithGain(state.StrategyId);
             Persist(@event, strategyFinishedWithGain =>
             {
-                DisplayHelper.WriteLine($"Strategy finished with gain {strategyFinishedWithGain.StrategyId}");
+                DisplayHelper.WriteLine($"Strategy finished with gain {strategyFinishedWithGain.StrategyId}", _loggingAdapter);
 
                 var changeExecutedAmmount = new ChangeExecutedAmmount()
                 {
@@ -171,11 +150,10 @@ namespace AkkaPersistenceSample.ActorModel.Actors
 
         private void FinishStrategyWithLoss(StrategyState state)
         {
-            
             var @event = new StrategyFinishedWithLoss(state.StrategyId);
             Persist(@event, strategyFinishedWithLoss =>
             {
-                DisplayHelper.WriteLine($"Strategy finished with loss {strategyFinishedWithLoss.StrategyId}");
+                DisplayHelper.WriteLine($"Strategy finished with loss {strategyFinishedWithLoss.StrategyId}", _loggingAdapter);
                 
                 var changeExecutedAmmount = new ChangeExecutedAmmount()
                 {

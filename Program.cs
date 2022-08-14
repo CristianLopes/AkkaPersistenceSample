@@ -13,14 +13,14 @@ namespace AkkaPersistenceSample
             _actorSystem = ActorSystem.Create("strategy-system");
             _strategyManager = _actorSystem.ActorOf<StrategyManagerActor>("StrategyManager");
 
-            Console.ForegroundColor = ConsoleColor.White;
-
-            DisplayInstructions();
 
             while (true)
             {
-                Thread.Sleep(2000); // ensure console color set back to white
-                Console.ForegroundColor = ConsoleColor.White;
+                DisplayInstructions();
+
+                Console.WriteLine();
+                Console.Write("Next command:");
+                Console.ForegroundColor = ConsoleColor.Red;
                 
                 var action = Console.ReadLine()!;
                 if (action.Contains("create"))

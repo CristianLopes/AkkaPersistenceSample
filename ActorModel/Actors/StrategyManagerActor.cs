@@ -1,4 +1,5 @@
 ﻿using Akka.Actor;
+using Akka.Event;
 using Akka.Persistence;
 using AkkaPersistenceSample.ActorModel.Commands;
 using AkkaPersistenceSample.ActorModel.Events;
@@ -7,6 +8,8 @@ namespace AkkaPersistenceSample.ActorModel.Actors
 {
     internal class StrategyManagerActor : ReceivePersistentActor
     {
+        private readonly ILoggingAdapter _loggingAdapter =Context.GetLogger();
+
         public override string PersistenceId => "strategy-manager";
 
         public StrategyManagerActor()
@@ -14,7 +17,7 @@ namespace AkkaPersistenceSample.ActorModel.Actors
             Command<CreateStrategy>(command =>
             {
                 var newId = Guid.NewGuid();
-                DisplayHelper.WriteLine($"StrategyManagerActor received CreateStrategy command for {newId}");
+                DisplayHelper.WriteLine($"StrategyManagerActor received CreateStrategy command for {newId}", _loggingAdapter);
                 var @event = new StrategyCreated()
                 {
                     UserCode = command.UserCode,
@@ -29,7 +32,7 @@ namespace AkkaPersistenceSample.ActorModel.Actors
 
                 Persist(@event, strategyCreatedEvent =>
                 {
-                    DisplayHelper.WriteLine($"StrategyManagerActor StrategyCreated event persisted for {strategyCreatedEvent}");
+                    DisplayHelper.WriteLine($"StrategyManagerActor StrategyCreated event persisted for {strategyCreatedEvent}", _loggingAdapter);
 
                     Context.ActorOf(
                         Props.Create(
@@ -49,7 +52,7 @@ namespace AkkaPersistenceSample.ActorModel.Actors
 
             Recover<StrategyCreated>(playerCreatedEvent =>
             {
-                DisplayHelper.WriteLine($"StrategyManagerActor replaying StrategyCreated event for {playerCreatedEvent}");
+                DisplayHelper.WriteLine($"StrategyManagerActor replaying StrategyCreated event for {playerCreatedEvent}", _loggingAdapter);
 
                 Context.ActorOf(
                     Props.Create(
