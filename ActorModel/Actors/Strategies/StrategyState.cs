@@ -1,4 +1,4 @@
-﻿namespace AkkaPersistenceSample.ActorModel.Actors
+﻿namespace AkkaPersistenceSample.ActorModel.Actors.Strategies
 {
     public class StrategyState
     {

@@ -1,14 +1,15 @@
 ﻿using Akka.Actor;
 using Akka.Event;
 using Akka.Persistence;
+using AkkaPersistenceSample.ActorModel.Actors.Strategies.Quote;
 using AkkaPersistenceSample.ActorModel.Commands;
 using AkkaPersistenceSample.ActorModel.Events;
 
-namespace AkkaPersistenceSample.ActorModel.Actors
+namespace AkkaPersistenceSample.ActorModel.Actors.Strategies
 {
     internal class StrategyManagerActor : ReceivePersistentActor
     {
-        private readonly ILoggingAdapter _loggingAdapter =Context.GetLogger();
+        private readonly ILoggingAdapter _loggingAdapter = Context.GetLogger();
 
         public override string PersistenceId => "strategy-manager";
 
@@ -36,11 +37,11 @@ namespace AkkaPersistenceSample.ActorModel.Actors
 
                     Context.ActorOf(
                         Props.Create(
-                            () => 
+                            () =>
                             new StrategyActor(
                                 strategyCreatedEvent.UserCode,
                                 strategyCreatedEvent.StrategyId,
-                                strategyCreatedEvent.CryptoCurrency, 
+                                strategyCreatedEvent.CryptoCurrency,
                                 strategyCreatedEvent.Side,
                                 strategyCreatedEvent.EntryPrice,
                                 strategyCreatedEvent.GainPrice,
@@ -68,6 +69,9 @@ namespace AkkaPersistenceSample.ActorModel.Actors
                             playerCreatedEvent.Ammount
                             )), name: playerCreatedEvent.StrategyId.ToString());
             });
+
+            Context.ActorOf(
+                 Props.Create(() => new QuoteActor()), name: QuoteActor.QuoteName);
         }
     }
 }

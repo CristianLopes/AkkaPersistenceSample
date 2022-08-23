@@ -1,5 +1,5 @@
 ﻿using Akka.Event;
-using AkkaPersistenceSample.ActorModel.Actors;
+using AkkaPersistenceSample.ActorModel.Actors.Strategies;
 
 namespace AkkaPersistenceSample
 {
@@ -7,11 +7,11 @@ namespace AkkaPersistenceSample
     {
         public static void WriteLine(string message, ILoggingAdapter loggingAdapter)
         {
-            var originalColor = Console.ForegroundColor;
-            Console.ForegroundColor = ConsoleColor.Green;
+            //var originalColor = Console.ForegroundColor;
+            //Console.ForegroundColor = ConsoleColor.Green;
             //Console.WriteLine(message);
             loggingAdapter.Info(message);
-            Console.ForegroundColor = originalColor;
+            //Console.ForegroundColor = originalColor;
         }
 
         internal static void PrintState(StrategyState state)

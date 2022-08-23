@@ -1,5 +1,5 @@
 ﻿using Akka.Actor;
-using AkkaPersistenceSample.ActorModel.Actors;
+using AkkaPersistenceSample.ActorModel.Actors.Strategies;
 
 namespace AkkaPersistenceSample
 {
